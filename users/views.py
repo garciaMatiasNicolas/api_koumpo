@@ -1,57 +1,47 @@
-from rest_framework.decorators import api_view
+from rest_framework import viewsets
 from rest_framework.response import Response
 from users.serializers import UserSerializer
 from users.models import UserModel as User
 from rest_framework import status
 
+class UserViewSet(viewsets.ModelViewSet):
+    serializer_class = UserSerializer
+    queryset = User.objects.all()
 
-class UserEndpoints:
-    @api_view(['GET'])
-    def read_all(request):
-        # If method is get type
-        if request.method == 'GET':
-            # Get all users and return as JSON
-            query = User.objects.all()
-            users_serializer = UserSerializer(query, many=True)
-            return Response(users_serializer.data, status=status.HTTP_200_OK)
-        # If method isn't get type
+    def create(self, request):
+        new_user = self.get_serializer(data=request.data)
+        if new_user.is_valid():
+            new_user.save()
+            return Response({'message': 'user_created', 'user': new_user.data},
+                            status=status.HTTP_201_CREATED)
         else:
-            return Response({'error': 'method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+            return Response({'error': 'bad_request', 'logs': new_user.errors},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-    @api_view(['GET', 'DELETE', 'PUT'])
-    def detail_user(request, pk):
-        query = User.objects.filter(id=pk).first()
+    def update(self, request, pk=None):
+        user_to_update = self.get_queryset().filter(id=pk).first()
 
-        if request.method == 'GET':
-            users_serializer = UserSerializer(query)
-            return Response(users_serializer.data, status=status.HTTP_200_OK)
-
-        elif request.method == 'PUT':
-            user = UserSerializer(query, data=request.data)
-            if user.is_valid():
-                user.save()
-                return Response(data=user.data, status=status.HTTP_200_OK)
+        if user_to_update:
+            data_updated = self.get_serializer(user_to_update, data=request.data)
+            if data_updated.is_valid():
+                data_updated.save()
+                return Response({'message': 'user_updated', 'user': data_updated.data},
+                                status=status.HTTP_200_OK)
             else:
-                return Response(user.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        elif request.method == 'DELETE':
-            query.delete()
-            return Response({'message': 'user deleted successfully'})
+                return Response({'error': 'bad_request', 'logs': data_updated.errors},
+                                status=status.HTTP_400_BAD_REQUEST)
 
         else:
-            return Response({'error': 'method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+            return Response({'error': 'user_not_found'},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-    @api_view(['POST'])
-    def create(request):
-        # If method is post type
-        if request.method == 'POST':
-            # Create new user
-            user = UserSerializer(data=request.data)
-            if user.is_valid():
-                user.save()
-                return Response(user.data, status=status.HTTP_201_CREATED)
-            else:
-                return Response(user.errors, status=status.HTTP_400_BAD_REQUEST)
-        # If method isn't post type
+    def destroy(self, request, pk=None):
+        user_to_delete = self.get_queryset().filter(id=pk).first()
+
+        if user_to_delete:
+            user_to_delete.delete()
+            return Response({'message': 'user_deleted'},
+                            status=status.HTTP_200_OK)
         else:
-            return Response({'error': 'method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+            return Response({'error': 'user_not_found'},
+                            status=status.HTTP_400_BAD_REQUEST)
